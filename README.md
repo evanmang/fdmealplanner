@@ -8,7 +8,6 @@ In your /config/configuration.yaml add a block under sensors:
 - platform: fdmealplanner
   accounts:
     - 'XX/YY/Z'
-
 ```      
       
 `/XX/YY/Z` is the codes in the FD MealPanner URL: https://www.fdmealplanner.com/ for your school and meal type. For instance if you choose "Huntington Washington"  and the lunch meal, the URL you will be taken to is: `https://www.fdmealplanner.com/#menu/mealPlanner/27/65/2` so use `27/65/2` for your code.
