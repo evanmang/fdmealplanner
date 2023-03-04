@@ -142,7 +142,7 @@ class fdmealplannerSensor(Entity):
             self._lunch2 = None
             self._lunch3 = None
             self._lunch4 = None
-    ff
+            
     @property
     def extra_state_attributes(self):
         """Return the state attributes."""
