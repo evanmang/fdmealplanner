@@ -18,6 +18,7 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.event import track_time_interval
 from homeassistant.util.dt import utc_from_timestamp
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,13 +36,13 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 BASE_INTERVAL = timedelta(hours=6)
 
 
-def setup_platform(hass, config, add_entities, discovery_info=None):
+async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Set up the fdmealplanner platform."""
     
-    entities = [fdmealplannerSensor(account) for account in config.get(CONF_ACCOUNTS)]
+    entities = [fdmealplannerSensor(hass, account) for account in config.get(CONF_ACCOUNTS)]
     if not entities:
         return
-    add_entities(entities, True)
+    async_add_entities(entities, True)
 
     # Only one sensor update once every 60 seconds to avoid
     entity_next = 0
@@ -51,7 +52,7 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
 class fdmealplannerSensor(Entity):
     """A class for the mealviewer account."""
 
-    def __init__(self, account):
+    def __init__(self, hass, account):
         """Initialize the sensor."""
         
         self._account = account
@@ -62,7 +63,8 @@ class fdmealplannerSensor(Entity):
         self._lunch4 = None
         self._state = None
         self._name = self._account
-
+        self.hass = hass
+        
     @property
     def name(self):
         """Return the name of the sensor."""
@@ -84,7 +86,7 @@ class fdmealplannerSensor(Entity):
         """Turn off polling, will do ourselves."""
         return True
         
-    def update(self):
+    async def async_update(self):
         """Update device state."""
         
         self._state = 'Not Updated'
@@ -97,7 +99,7 @@ class fdmealplannerSensor(Entity):
                 'x-requested-with': 'XMLHttpRequest',
                 'user-agent': 'okhttp/4.9.1',
             }
-
+            session = async_get_clientsession(self.hass)
             [accountId, locationId, mealPeriodId] = self._account.split('/')
             for day in range(5):
                 tomorrow = arrow.utcnow().to('US/Eastern').shift(days=day)
@@ -109,20 +111,30 @@ class fdmealplannerSensor(Entity):
                     
                     url = 'https://apiservicelocators.fdmealplanner.com/api/v1/data-locator-webapi/3/meals?accountId=' + accountId + '&endDate=' + formatted_tomorrow + '&isActive=true&isStandalone&locationId='+ locationId +'&mealPeriodId=' + mealPeriodId + '&menuId=0&monthId=' +formatted_month+ '&selectedDate=' + formatted_tomorrow + '&startDate=' + formatted_tomorrow + '&tenantId=3&timeOffset=300&year=' + formatted_year
                     
-                    response = requests.get(url,headers=headers,)
-                    if response.json()['result'][0].get('xmlMenuRecipes') is None:
+                    resp = await session.get(url,headers=headers)
+                    datajson = await resp.json()
+                    
+                    if datajson['result'][0].get('xmlMenuRecipes') is None:
                         meal = ''
                     else:                   
-                        root = ElementTree.fromstring(response.json()['result'][0].get('xmlMenuRecipes'))
+                        root = ElementTree.fromstring(datajson['result'][0].get('xmlMenuRecipes'))
                         meal = tomorrow.format('dddd')
                         counter = 0
-                        for child in islice(root,7):
-                            counter = counter + 1
+                        lastEntree = ''
+                        for child in root: #islice(root,15):
+                            if counter > 5:
+                                break
                             entree = child.attrib.get('ComponentEnglishName').strip()
+                            if entree == lastEntree:
+                                continue
+                            lastEntree = entree    
+                            counter = counter + 1
                             if counter == 1:
                                 meal = meal + ': ' + entree
                             else:
                                 meal = meal + ', ' + entree
+                            
+                            
                 
                 if day == 0:
                     self._lunch0 = meal
