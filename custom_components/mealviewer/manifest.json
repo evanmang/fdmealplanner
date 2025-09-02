@@ -1,8 +1,8 @@
 {
-  "domain": "mealviewer",
-  "name": "Mealviewer",
+  "domain": "fdmealplanner",
+  "name": "fdmealplanner",
   "version": "1.0.0",
-  "documentation": "https://www.home-assistant.io/integrations/mealviewer",
+  "documentation": "https://github.com/jdeath/fdmealplanner",
   "requirements": [],
   "codeowners": []
 }
